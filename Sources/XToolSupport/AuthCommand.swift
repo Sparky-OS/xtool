@@ -76,12 +76,15 @@ struct AuthOperation {
     }
 
     private func logInWithPassword() async throws -> AuthToken {
+        let anisette = try SparkySigningPolicy.anisetteURL(ProcessInfo.processInfo.environment["XTL_ANISETTE_URL"])
         print("""
-        Heads up:
-          This works by emulating a virtual Mac to interact with Apple services.
-          We use a third-party service to create a randomized device ID token
-          (Anisette Data) but your credentials are only ever sent to Apple.
-          Still, consider using a secondary Apple ID since this is a private API.
+        Anisette endpoint: \(anisette.absoluteString)
+        It receives a persistent random device identifier and Apple provisioning
+        blobs, and returns device authentication headers. It sees your IP address.
+        This service is not Apple. The Apple account name, SRP authentication
+        exchange and verification code go to Apple's HTTPS services, not anisette.
+        Authentication tokens, the account name, provisioning data and signing
+        private key are saved unencrypted under ~/.config/xtool/data.
         """)
 
         let username = try await Console.promptRequired("Apple ID: ", existing: username)

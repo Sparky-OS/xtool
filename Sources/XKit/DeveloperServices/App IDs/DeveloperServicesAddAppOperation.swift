@@ -225,6 +225,20 @@ public struct DeveloperServicesAddAppOperation: DeveloperServicesOperation {
             signingInfo: signingInfo
         ).perform()
 
+        // An unsigned IPA carries no signed entitlement. Add this narrow policy
+        // only after checking what Apple's returned provisioning profile permits.
+        let profileEntitlements = try mobileprovision.digest().entitlements.entitlements()
+        let profileID = profileEntitlements.compactMap { ($0 as? ApplicationIdentifierEntitlement)?.rawValue }.first ?? ""
+        let allowedGroups = profileEntitlements.compactMap { ($0 as? KeychainAccessGroupsEntitlement)?.rawValue }.flatMap { $0 }
+        let kdeID = ProvisioningIdentifiers.identifier(fromSanitized: "org.sparkyos.kdeconnect", context: context)
+        if let groups = try SparkySigningPolicy.groups(originalID: bundleID, newID: newBundleID,
+            kdeID: kdeID, applicationID: profileID, allowed: allowedGroups) {
+            try entitlements.updateEntitlements { values in
+                values.removeAll { $0 is KeychainAccessGroupsEntitlement }
+                values.append(KeychainAccessGroupsEntitlement(rawValue: groups))
+            }
+        }
+
         return ProvisioningInfo(
             newBundleID: newBundleID,
             entitlements: entitlements,

@@ -69,6 +69,11 @@ public protocol RawADIProvisioningSession: Sendable {
 
 // uses CoreADI APIs
 public struct ADIDataProvider: AnisetteDataProvider {
+    // Metadata only: does not initialize persistent identity, provision or log in.
+    public static func probeEndpoint() async throws -> ClientInfoWithUserAgent {
+        try await OmnisetteADIProvider().clientInfo()
+    }
+
 
     public enum ADIError: Error {
         case hashingFailed
@@ -241,7 +246,8 @@ public struct ADIDataProvider: AnisetteDataProvider {
     }
 
     private static var providerID: String? {
-        "mac-omnisette"
+        // Never reuse a provisioning blob or login token across anisette endpoints.
+        "mac-omnisette:" + (ProcessInfo.processInfo.environment["XTL_ANISETTE_URL"] ?? "https://mac-ani.jkcoxson.com")
     }
 
     public var providerID: String? { Self.providerID }

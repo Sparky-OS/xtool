@@ -6,11 +6,12 @@ struct OmnisetteADIProvider: RawADIProvider {
 
     // should implement v3 of https://github.com/SideStore/omnisette-server
     // list: https://servers.sidestore.io/servers.json
-    private let url: URL
-    init(
-        url: URL = URL(string: "https://mac-ani.jkcoxson.com")!
-    ) {
-        self.url = url
+    private let explicitURL: URL?
+    init(url: URL? = nil) { explicitURL = url }
+    private var url: URL {
+        get throws {
+            try SparkySigningPolicy.anisetteURL(explicitURL?.absoluteString ?? ProcessInfo.processInfo.environment["XTL_ANISETTE_URL"])
+        }
     }
 
     static let decoder: JSONDecoder = {
@@ -33,7 +34,7 @@ struct OmnisetteADIProvider: RawADIProvider {
             let userAgent: String
         }
         let body = try await client.makeRequest(
-            HTTPRequest(url: url.appendingPathComponent("v3/client_info"))
+            HTTPRequest(url: try url.appendingPathComponent("v3/client_info"))
         ).body
         let clientInfo = try Self.decoder.decode(ClientInfo.self, from: body)
         return ClientInfoWithUserAgent(
@@ -43,7 +44,7 @@ struct OmnisetteADIProvider: RawADIProvider {
     }
 
     func startProvisioning(spim: Data, userID: UUID) async throws -> (RawADIProvisioningSession, Data) {
-        var url = url.appendingPathComponent("v3/provisioning_session")
+        var url = try url.appendingPathComponent("v3/provisioning_session")
         var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
         components.scheme = components.scheme == "http" ? "ws" : "wss"
         url = components.url!
@@ -76,7 +77,7 @@ struct OmnisetteADIProvider: RawADIProvider {
             }
         }
 
-        var request = HTTPRequest(url: url.appendingPathComponent("v3/get_headers"))
+        var request = HTTPRequest(url: try url.appendingPathComponent("v3/get_headers"))
         request.method = .post
         request.headerFields[.contentType] = "application/json"
         let body = try Self.encoder.encode(Request(
@@ -137,13 +138,7 @@ private final class OmnisetteProvisioningSession: RawADIProvisioningSession {
 
     func endProvisioning(routingInfo: UInt64, ptm: Data, tk: Data) async throws -> Data {
         defer { close() }
-        do {
-            struct Response: Encodable {
-                let ptm: Data
-                let tk: Data
-            }
-            try await send(Response(ptm: ptm, tk: tk))
-        }
+        try await task.send(.text(try SparkySigningPolicy.finishProvisioningMessage(ptm: ptm, tk: tk, routingInfo: routingInfo)))
 
         do {
             struct Request: Decodable {

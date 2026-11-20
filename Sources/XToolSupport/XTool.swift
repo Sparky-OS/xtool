@@ -19,6 +19,7 @@ private struct XToolCommand: AsyncParsableCommand {
             CommandGroup(
                 name: "Configuration",
                 subcommands: [
+                    SparkyPolicyCommand.self,
                     SetupCommand.self,
                     AuthCommand.self,
                     SDKCommand.self,
